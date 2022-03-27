@@ -1,0 +1,5 @@
+name: ASMPPowersPlugin
+version: 0.1
+author: Lebyy
+main: me.lebyy.asmppowersplugin.ASMPPowersPlugin
+api-version: 1.18
