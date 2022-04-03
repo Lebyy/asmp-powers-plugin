@@ -8,7 +8,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -27,7 +26,7 @@ import java.util.UUID;
 
 public class ASMPPowersPlugin extends JavaPlugin implements Listener {
     private static final HashMap<UUID, Long > cooldown = new HashMap < UUID, Long > ();
-    private static boolean whimsyAndLumiPowerActivated = false;
+    private static final HashMap<UUID, Long> dataStore = new HashMap<UUID, Long>();
     private static Vector lastBarrierBlockLocation;
     @Override
     public void onEnable() {
@@ -56,9 +55,23 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
         return false;
     }
 
+    // Check for player data
+    private boolean checkForData(Player player) {
+        if ((cooldown.containsKey(player.getUniqueId()) && cooldown.get(player.getUniqueId()) > System.currentTimeMillis())) {
+            return true;
+        }
+        return false;
+    }
+
     // Add player to CoolDown
     private boolean addCooldown(Player player, Integer time) {
         cooldown.put(player.getUniqueId(), System.currentTimeMillis() + time);
+        return true;
+    }
+
+    // Add data to player data
+    private boolean addData(Player player, Integer time) {
+        dataStore.put(player.getUniqueId(), System.currentTimeMillis() + time);
         return true;
     }
 
@@ -101,7 +114,7 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                 Boolean playerOnCooldown = checkForCooldown(player);
                 if(!playerOnCooldown) {
                     player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, 3000, 0));
-                    whimsyAndLumiPowerActivated = true;
+                    addData(player, 120000);
                     addCooldown(player, 300000);
                 }
             }
@@ -118,18 +131,20 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
     // Trigerred once an Entity receives damage.
     @EventHandler
     public void onDamage(EntityDamageEvent event){
-        if(event.getEntity() instanceof Player){
-            Player p = (Player) event.getEntity();
+        Player player = (Player) event.getEntity();
+        assert player != null;
 
-            if(whimsyAndLumiPowerActivated) {
+        if (player.hasPermission("powers.whimsy")) {
+            Boolean checkForActivation = checkForData(player);
+            if(checkForActivation) {
                 if (event.getCause() == EntityDamageEvent.DamageCause.FALL) {
                     event.setCancelled(true);
                 }
-                if (p.getLastDamageCause().getCause() == EntityDamageEvent.DamageCause.FALL) {
+                if (player.getLastDamageCause().getCause() == EntityDamageEvent.DamageCause.FALL) {
                     event.setCancelled(true);
                 }
             }
-        }
+        };
     }
 
     // Trigerred once player respawn's.
