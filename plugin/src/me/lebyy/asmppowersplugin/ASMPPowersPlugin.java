@@ -6,11 +6,15 @@ import me.lebyy.asmppowersplugin.ArmorListener.DispenserArmorListener;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 import org.bukkit.event.player.*;
@@ -18,6 +22,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.HashMap;
@@ -27,7 +32,9 @@ import java.util.UUID;
 public class ASMPPowersPlugin extends JavaPlugin implements Listener {
     private static final HashMap<UUID, Long > cooldown = new HashMap < UUID, Long > ();
     private static final HashMap<UUID, Long> dataStore = new HashMap<UUID, Long>();
-    private static Vector lastBarrierBlockLocation;
+    private static boolean crossedPowerActivated = false;
+    private static int numberOfTimesNagaliePowerUsed = 0;
+
     @Override
     public void onEnable() {
         saveDefaultConfig();
@@ -113,9 +120,18 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
             if (player.hasPermission("powers.whimsy")) {
                 Boolean playerOnCooldown = checkForCooldown(player);
                 if(!playerOnCooldown) {
-                    player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, 3000, 0));
-                    addData(player, 120000);
-                    addCooldown(player, 300000);
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, 600, 4));
+                    addData(player, 35000);
+                    addCooldown(player, 180000);
+                }
+            }
+            if(player.hasPermission("powers.lumi")) {
+                Boolean playerOnCooldown = checkForCooldown(player);
+                if(!playerOnCooldown) {
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, 600, 4));
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.WATER_BREATHING, 3600, 0));
+                    addData(player, 35000);
+                    addCooldown(player, 240000);
                 }
             }
             if (player.hasPermission("powers.ice")) {
@@ -125,14 +141,51 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                     addCooldown(player, 300000);
                 }
             }
+            if (player.hasPermission("powers.crossed")) {
+                crossedPowerActivated = true;
+                playerWallClimbing(player);
+            }
+            if (player.hasPermission("powers.oddity")) {
+                Boolean playerOnCooldown = checkForCooldown(player);
+                if(!playerOnCooldown) {
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 600, 0));
+                    addCooldown(player, 180000);
+                }
+            }
+            if (player.hasPermission("powers.float")) {
+                Boolean playerOnCooldown = checkForCooldown(player);
+                if(!playerOnCooldown) {
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.LEVITATION, 20, 9, true, false));
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 200, 9, true, false));
+                    addCooldown(player, 20000);
+                }
+            }
+            if (player.hasPermission("powers.nagalie")) {
+                PotionEffect effect = event.getPlayer().getPotionEffect( PotionEffectType.SLOW_FALLING );
+                if (effect != null) {
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, Integer.MAX_VALUE, 0));
+                } else {
+                    player.removePotionEffect(PotionEffectType.SLOW_FALLING);
+                }
+            }
+            if(player.hasPermission("powers.coppice")) {
+                Boolean playerOnCooldown = checkForCooldown(player);
+                if(!playerOnCooldown) {
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, 600, 1));
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 700, 0));
+                    addCooldown(player, 180000);
+                }
+            }
         }
     }
 
     // Trigerred once an Entity receives damage.
     @EventHandler
     public void onDamage(EntityDamageEvent event){
+        Entity entity = event.getEntity();
+        if(!(entity instanceof Player)) return;
+
         Player player = (Player) event.getEntity();
-        assert player != null;
 
         if (player.hasPermission("powers.whimsy")) {
             Boolean checkForActivation = checkForData(player);
@@ -216,10 +269,12 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
     // Trigerred once an entity targets a player.
     @EventHandler
     public void onEntityTargetPlayer(EntityTargetLivingEntityEvent event) {
-        Player player = (Player) event.getTarget();
-        assert player != null;
-        Entity entity = event.getEntity();
+        Entity targetEntity = event.getTarget();
+        if(!(targetEntity instanceof Player)) return;
 
+        Player player = (Player) event.getTarget();
+
+        Entity entity = event.getEntity();
         if(player.hasPermission("powers.crossed")) {
             if(entity.getType() == EntityType.SPIDER) {
                 event.setCancelled(true);
@@ -248,6 +303,105 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
             if (item.getType() == Material.CHAINMAIL_CHESTPLATE) {
                 if (item.getItemMeta().getDisplayName().toLowerCase() == "amethyst heart") {
                     player.damage(Integer.MAX_VALUE);
+                }
+            }
+        }
+    }
+
+    // A function which aids in a player climbing a wall.
+    private void playerWallClimbing(Player player) {
+        new BukkitRunnable() {
+
+            @Override
+            public void run() {
+                Location location = player.getLocation();
+                Block block = location.getBlock();
+                if(player.hasPermission("powers.crossed")) {
+                    if(crossedPowerActivated) {
+                        if (player.isOnline()) {
+                            if (player.isSneaking() && !player.isGliding()) {
+                                if (nextToWall(player) && !block.isLiquid()) {
+                                    player.setVelocity(player.getVelocity()
+                                            .setY(0.175));
+                                }
+                            } else {
+                                cancel();
+                            }
+                        } else {
+                            cancel();
+                        }
+                    } else {
+                        cancel();
+                    }
+                } else {
+                    cancel();
+                }
+            }
+        }.runTaskTimerAsynchronously(this, 0L, 1L);
+    }
+
+    /**
+     * Next to wall boolean.
+     *
+     * @param player the player
+     *
+     * @return the boolean
+     */
+    private boolean nextToWall(Player player) {
+        World world = player.getWorld();
+        double locX = player.getLocation().getX();
+        double locY = player.getLocation().getY();
+        double locZ = player.getLocation().getZ();
+        Location xp = new Location(world, locX + 0.30175, locY, locZ);
+        Location xn = new Location(world, locX - 0.30175, locY, locZ);
+        Location zp = new Location(world, locX, locY, locZ + 0.30175);
+        Location zn = new Location(world, locX, locY, locZ - 0.30175);
+
+        if (xp.getBlock().getType().isSolid()) {
+            return true;
+        }
+        if (xn.getBlock().getType().isSolid()) {
+            return true;
+        }
+        if (zp.getBlock().getType().isSolid()) {
+            return true;
+        }
+        return zn.getBlock().getType().isSolid();
+    }
+
+    // Trigerred once an player interacts's with something.
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        Player player = event.getPlayer();
+        ItemStack itemInHand = player.getInventory().getItemInMainHand();
+        Action action = event.getAction();
+
+        if(player.hasPermission(("powers.nagalie"))) {
+            if (action == Action.RIGHT_CLICK_BLOCK && itemInHand.getType() == Material.SHEARS) {
+                if(itemInHand.getItemMeta().getDisplayName().toLowerCase() == "sparklia") {
+                    if(numberOfTimesNagaliePowerUsed > 3) {
+                        Boolean playerOnCooldown = checkForCooldown(player);
+                        if(!playerOnCooldown) {
+                            Block block = event.getClickedBlock();
+                            Location blockLocation = block.getLocation();
+                            blockLocation.setY(blockLocation.getBlockY() + 1);
+                            if(blockLocation.getBlock().getType() == Material.AIR) {
+                                blockLocation.getBlock().setType(block.getType());
+                                block.setType(Material.AIR);
+                                addCooldown(player, 30000);
+                                numberOfTimesNagaliePowerUsed = 1;
+                            }
+                        }
+                    }
+                    Block block = event.getClickedBlock();
+                    Location blockLocation = block.getLocation();
+                    blockLocation.setY(blockLocation.getBlockY() + 1);
+                    if(blockLocation.getBlock().getType() == Material.AIR) {
+                        blockLocation.getBlock().setType(block.getType());
+                        block.setType(Material.AIR);
+                        addCooldown(player, 30000);
+                        numberOfTimesNagaliePowerUsed++;
+                    }
                 }
             }
         }
