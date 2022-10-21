@@ -20,6 +20,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 import org.bukkit.event.player.*;
@@ -30,14 +31,11 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
 
 public class ASMPPowersPlugin extends JavaPlugin implements Listener {
-    private static final HashMap < UUID, Long > cooldown = new HashMap < UUID, Long > ();
-    private static final HashMap < UUID, Long > dataStore = new HashMap < UUID, Long > ();
+    private static final HashMap < UUID, Long > cooldown = new HashMap<>();
+    private static final HashMap < UUID, Long > dataStore = new HashMap<>();
     private static boolean crossedPowerActivated = false;
     private static int numberOfTimesNagaliePowerUsed = 0;
 
@@ -66,7 +64,7 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                 if (event.getPacketType() == PacketType.Play.Client.STEER_VEHICLE) {
                     Player player = event.getPlayer();
 
-                    if(player.hasPermission("allow.ride")) {
+                    if (player.hasPermission("allow.ride")) {
                         // Grab the necessary objects
                         PacketContainer pc = event.getPacket();
                         Entity vehicle = player.getVehicle();
@@ -81,14 +79,18 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                         // jumping (pressing spacebar)
                         boolean jump = pc.getBooleans().read(0);
 
-                        if (jump && vehicle.isOnGround()) {
-                            // Initial jump velocity is 0.5, which allows them to jump over 1 block but not
-                            // 1.5 or 2 (close to default, can be modified)
-                            vehicle.setVelocity(vehicle.getVelocity().add(new Vector(0.0, 0.5, 0.0)));
+                        if (jump) {
+                            assert vehicle != null;
+                            if (vehicle.isOnGround()) {
+                                // Initial jump velocity is 0.5, which allows them to jump over 1 block but not
+                                // 1.5 or 2 (close to default, can be modified)
+                                vehicle.setVelocity(vehicle.getVelocity().add(new Vector(0.0, 0.5, 0.0)));
+                            }
                         }
 
                         // Now, calculate the new velocity using the function below, and apply to the
                         // vehicle entity
+                        assert vehicle != null;
                         Vector vel = ASMPPowersPlugin.getVelocityVector(vehicle.getVelocity(), player, side, forw);
                         vehicle.setVelocity(vel);
                         // Update entity head rotation
@@ -116,22 +118,17 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
 
     // Check for player data
     private boolean checkForData(Player player) {
-        if ((cooldown.containsKey(player.getUniqueId()) && cooldown.get(player.getUniqueId()) > System.currentTimeMillis())) {
-            return true;
-        }
-        return false;
+        return cooldown.containsKey(player.getUniqueId()) && cooldown.get(player.getUniqueId()) > System.currentTimeMillis();
     }
 
     // Add player to CoolDown
-    private boolean addCooldown(Player player, Integer time) {
+    private void addCooldown(Player player, Integer time) {
         cooldown.put(player.getUniqueId(), System.currentTimeMillis() + time);
-        return true;
     }
 
     // Add data to player data
-    private boolean addData(Player player, Integer time) {
-        dataStore.put(player.getUniqueId(), System.currentTimeMillis() + time);
-        return true;
+    private void addData(Player player) {
+        dataStore.put(player.getUniqueId(), System.currentTimeMillis() + 35000);
     }
 
     // Random Teleportation Function
@@ -163,26 +160,26 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
         if (player.isSneaking()) {
             // Randomized teleportation within 20 blocks.
             if (player.hasPermission("powers.frogs")) {
-                Boolean playerOnCooldown = checkForCooldown(player);
+                boolean playerOnCooldown = checkForCooldown(player);
                 if (!playerOnCooldown) {
                     randomTeleport(player);
                     addCooldown(player, 30000);
                 }
             }
             if (player.hasPermission("powers.whimsy")) {
-                Boolean playerOnCooldown = checkForCooldown(player);
+                boolean playerOnCooldown = checkForCooldown(player);
                 if (!playerOnCooldown) {
                     player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, 600, 4, true, false));
-                    addData(player, 35000);
+                    addData(player);
                     addCooldown(player, 180000);
                 }
             }
             if (player.hasPermission("powers.lumi")) {
-                Boolean playerOnCooldown = checkForCooldown(player);
+                boolean playerOnCooldown = checkForCooldown(player);
                 if (!playerOnCooldown) {
                     player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, 600, 4, true, false));
                     player.addPotionEffect(new PotionEffect(PotionEffectType.WATER_BREATHING, 3600, 0, true, false));
-                    addData(player, 35000);
+                    addData(player);
                     addCooldown(player, 240000);
                 }
             }
@@ -207,7 +204,7 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                 }
             }
             if (player.hasPermission("powers.float")) {
-                Boolean playerOnCooldown = checkForCooldown(player);
+                boolean playerOnCooldown = checkForCooldown(player);
                 if (!playerOnCooldown) {
                     player.addPotionEffect(new PotionEffect(PotionEffectType.LEVITATION, 20, 9, true, false));
                     player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 200, 9, true, false));
@@ -223,7 +220,7 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                 }
             }
             if (player.hasPermission("powers.coppice")) {
-                Boolean playerOnCooldown = checkForCooldown(player);
+                boolean playerOnCooldown = checkForCooldown(player);
                 if (!playerOnCooldown) {
                     player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, 600, 1, true, false));
                     player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 700, 0, true, false));
@@ -238,6 +235,13 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                     player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, Integer.MAX_VALUE, 0, true, false));
                 }
             }
+            if (player.hasPermission("powers.aithne")) {
+                if (player.getInventory().getItemInMainHand().getType() == Material.AMETHYST_SHARD) {
+                    if (player.getInventory().getItemInMainHand().getAmount() == 64) {
+                        player.getInventory().setItemInMainHand(new ItemStack(Material.BUNDLE, 1));
+                    }
+                }
+            }
         }
     }
 
@@ -250,16 +254,16 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
         Player player = (Player) event.getEntity();
 
         if (player.hasPermission("powers.whimsy")) {
-            Boolean checkForActivation = checkForData(player);
+            boolean checkForActivation = checkForData(player);
             if (checkForActivation) {
                 if (event.getCause() == EntityDamageEvent.DamageCause.FALL) {
                     event.setCancelled(true);
                 }
-                if (player.getLastDamageCause().getCause() == EntityDamageEvent.DamageCause.FALL) {
+                if (Objects.requireNonNull(player.getLastDamageCause()).getCause() == EntityDamageEvent.DamageCause.FALL) {
                     event.setCancelled(true);
                 }
             }
-        };
+        }
     }
 
     // Trigerred once player respawn's.
@@ -275,6 +279,10 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
         }
         if (player.hasPermission("powers.lake")) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, Integer.MAX_VALUE, 9, true, false));
+        }
+        if (player.hasPermission("powers.aithne")) {
+            player.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, Integer.MAX_VALUE, 2, true, false));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, Integer.MAX_VALUE, 0, true, false));
         }
     }
 
@@ -292,6 +300,10 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
         if (player.hasPermission("powers.lake")) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, Integer.MAX_VALUE, 9, true, false));
         }
+        if (player.hasPermission("powers.aithne")) {
+            player.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, Integer.MAX_VALUE, 2, true, false));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, Integer.MAX_VALUE, 0, true, false));
+        }
     }
 
     // Trigerred once a player eats something.
@@ -299,22 +311,23 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
     public void onConsumeItem(PlayerItemConsumeEvent event) {
         Player player = event.getPlayer();
         ItemStack food = event.getItem();
-        if (player.hasPermission("powers.ice")) {
-            if (food.getType() == Material.MILK_BUCKET) {
+        if (food.getType() == Material.MILK_BUCKET) {
+            if (player.hasPermission("powers.ice")) {
                 player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 0, true, false));
             }
-        }
-        if (player.hasPermission("powers.milo")) {
-            if (food.getType() == Material.MILK_BUCKET) {
+            if (player.hasPermission("powers.milo")) {
                 player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 1, true, false));
                 player.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, Integer.MAX_VALUE, 1, true, false));
             }
-        }
-        if (player.hasPermission("powers.lake")) {
-            if (food.getType() == Material.MILK_BUCKET) {
+            if (player.hasPermission("powers.lake")) {
                 player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, Integer.MAX_VALUE, 9, true, false));
             }
+            if (player.hasPermission("powers.aithne")) {
+                player.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, Integer.MAX_VALUE, 2, true, false));
+                player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, Integer.MAX_VALUE, 0, true, false));
+            }
         }
+
     }
 
     // Trigerred once an entity targets a player.
@@ -352,10 +365,32 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
             ItemStack item = event.getBrokenItem();
 
             if (item.getType() == Material.CHAINMAIL_CHESTPLATE) {
-                if (item.getItemMeta().getDisplayName().equalsIgnoreCase("amethyst heart")) {
+                if (Objects.requireNonNull(item.getItemMeta()).getDisplayName().equalsIgnoreCase("amethyst heart")) {
                     player.damage(Integer.MAX_VALUE);
                 }
             }
+        }
+    }
+
+    // Triggered once an entity attacks an entity. (player)
+    @EventHandler
+    public void onEntityAttackEntity(EntityDamageByEntityEvent event) {
+        Entity entity = event.getEntity();
+        if (!(entity instanceof Player)) return;
+
+        Player player = (Player) event.getEntity();
+
+        Entity damager = event.getDamager();
+        if(!(damager instanceof Player)) return;
+
+        Player attacker = (Player) event.getDamager();
+
+        if (attacker.hasPermission("powers.aithne")) {
+            attacker.damage(6);
+            player.setHealth(player.getHealth() + 2);
+
+            attacker.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 600, 1, true, false));
+            attacker.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_DIGGING, 600, 1, true, false));
         }
     }
 
@@ -431,11 +466,12 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
             if (action == Action.RIGHT_CLICK_BLOCK) {
                 if (itemInHand.getType() == Material.SHEARS) {
                     if (itemInHand.hasItemMeta()) {
-                        if (itemInHand.getItemMeta().getDisplayName().equalsIgnoreCase("Sparklia")) {
+                        if (Objects.requireNonNull(itemInHand.getItemMeta()).getDisplayName().equalsIgnoreCase("Sparklia")) {
                             if (numberOfTimesNagaliePowerUsed > 3) {
-                                Boolean playerOnCooldown = checkForCooldown(player);
+                                boolean playerOnCooldown = checkForCooldown(player);
                                 if (!playerOnCooldown) {
                                     Block oldBlock = event.getClickedBlock();
+                                    assert oldBlock != null;
                                     Block newBlock = oldBlock.getLocation().add(0, 1, 0).getBlock();
                                     if (newBlock.getType() == Material.AIR) {
                                         newBlock.setType(oldBlock.getType());
@@ -446,6 +482,7 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                                 }
                             } else {
                                 Block oldBlock = event.getClickedBlock();
+                                assert oldBlock != null;
                                 Block newBlock = oldBlock.getLocation().add(0, 1, 0).getBlock();
                                 if (newBlock.getType() == Material.AIR) {
                                     newBlock.setType(oldBlock.getType());
@@ -460,23 +497,23 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
             }
         }
 
-        if (player.hasPermission("magic.swiftness_grace_buff")) {
+        if (player.hasPermission("magic.swiftness_grace")) {
             if (player.isSneaking()) {
                 if (action == Action.LEFT_CLICK_BLOCK || action == Action.LEFT_CLICK_AIR) {
-                    Float playerPitch = player.getEyeLocation().getPitch();
+                    float playerPitch = player.getEyeLocation().getPitch();
                     if (playerPitch <= -90) {
                         player.setVelocity(player.getVelocity().setY(0.5));
                     }
                     Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
                     if (block.getType() == Material.LAVA_CAULDRON) {
-                        Boolean playerOnCooldown = checkForCooldown(player);
+                        boolean playerOnCooldown = checkForCooldown(player);
                         if (!playerOnCooldown) {
                             if (player.getInventory().contains(Material.AMETHYST_SHARD, 64)) {
                                 player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 64));
                             } else if (player.getInventory().contains(Material.AMETHYST_BLOCK, 16)) {
                                 player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 16));
                             }
-                            List<Entity> playersEntity = player.getNearbyEntities(5, 5, 5);
+                            List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
                             Entity playerEntity = playersEntity.get(0);
                             if (playerEntity instanceof Player player2) {
                                 player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 7200, 2, true, false));
@@ -490,27 +527,21 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                         }
 
                     }
-                }
-            }
-        }
-
-        if (player.hasPermission("magic.swiftness_grace_debuff")) {
-            if (player.isSneaking()) {
-                if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
-                    Float playerPitch = player.getEyeLocation().getPitch();
+                } else if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
+                    float playerPitch = player.getEyeLocation().getPitch();
                     if (playerPitch <= -90) {
                         player.setVelocity(player.getVelocity().setY(0.5));
                     }
                     Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
                     if (block.getType() == Material.LAVA_CAULDRON) {
-                        Boolean playerOnCooldown = checkForCooldown(player);
+                        boolean playerOnCooldown = checkForCooldown(player);
                         if (!playerOnCooldown) {
                             if (player.getInventory().contains(Material.AMETHYST_SHARD, 64)) {
                                 player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 64));
                             } else if (player.getInventory().contains(Material.AMETHYST_BLOCK, 16)) {
                                 player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 16));
                             }
-                            List<Entity> playersEntity = player.getNearbyEntities(5, 5, 5);
+                            List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
                             Entity playerEntity = playersEntity.get(0);
                             if (playerEntity instanceof Player player2) {
                                 player2.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 7200, 2, true, false));
@@ -528,21 +559,21 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
             }
         }
 
-        if(player.hasPermission("magic.lucky_shroud_buff")) {
+        if (player.hasPermission("magic.lucky_shroud")) {
             if (player.isSneaking()) {
                 if (action == Action.LEFT_CLICK_BLOCK || action == Action.LEFT_CLICK_AIR) {
-                    Integer angleOfPlayer = (Math.round(player.getEyeLocation().getYaw()) + 270) % 360;
-                    if (angleOfPlayer <= 247 || angleOfPlayer <= 292 || angleOfPlayer <= 337) {
+                    int angleOfPlayer = (Math.round(player.getEyeLocation().getYaw()) + 270) % 360;
+                    if (angleOfPlayer <= 337) {
                         Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
                         if (block.getType() == Material.LAVA_CAULDRON) {
-                            Boolean playerOnCooldown = checkForCooldown(player);
+                            boolean playerOnCooldown = checkForCooldown(player);
                             if (!playerOnCooldown) {
                                 if (player.getInventory().contains(Material.AMETHYST_SHARD, 64)) {
                                     player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 64));
                                 } else if (player.getInventory().contains(Material.AMETHYST_BLOCK, 16)) {
                                     player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 16));
                                 }
-                                List<Entity> playersEntity = player.getNearbyEntities(5, 5, 5);
+                                List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
                                 Entity playerEntity = playersEntity.get(0);
                                 if (playerEntity instanceof Player player2) {
                                     player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 7200, 2, true, false));
@@ -555,25 +586,19 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                             }
                         }
                     }
-                }
-            }
-        }
-
-        if(player.hasPermission("magic.lucky_shroud_debuff")) {
-            if (player.isSneaking()) {
-                if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
-                    Integer angleOfPlayer = (Math.round(player.getEyeLocation().getYaw()) + 270) % 360;
-                    if (angleOfPlayer <= 247 || angleOfPlayer <= 292 || angleOfPlayer <= 337) {
+                } else if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
+                    int angleOfPlayer = (Math.round(player.getEyeLocation().getYaw()) + 270) % 360;
+                    if (angleOfPlayer <= 337) {
                         Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
                         if (block.getType() == Material.LAVA_CAULDRON) {
-                            Boolean playerOnCooldown = checkForCooldown(player);
+                            boolean playerOnCooldown = checkForCooldown(player);
                             if (!playerOnCooldown) {
                                 if (player.getInventory().contains(Material.AMETHYST_SHARD, 64)) {
                                     player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 64));
                                 } else if (player.getInventory().contains(Material.AMETHYST_BLOCK, 16)) {
                                     player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 16));
                                 }
-                                List<Entity> playersEntity = player.getNearbyEntities(5, 5, 5);
+                                List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
                                 Entity playerEntity = playersEntity.get(0);
                                 if (playerEntity instanceof Player player2) {
                                     player2.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 7200, 2, true, false));
@@ -590,21 +615,21 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
             }
         }
 
-        if(player.hasPermission("magic.travellers_blessing_buff")) {
+        if (player.hasPermission("magic.travellers_blessing")) {
             if (player.isSneaking()) {
                 if (action == Action.LEFT_CLICK_BLOCK || action == Action.LEFT_CLICK_AIR) {
-                    Integer angleOfPlayer = (Math.round(player.getEyeLocation().getYaw()) + 270) % 360;
-                    if (angleOfPlayer <= 67 || angleOfPlayer <= 112 || angleOfPlayer <= 157) {
+                    int angleOfPlayer = (Math.round(player.getEyeLocation().getYaw()) + 270) % 360;
+                    if (angleOfPlayer <= 157) {
                         Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
                         if (block.getType() == Material.LAVA_CAULDRON) {
-                            Boolean playerOnCooldown = checkForCooldown(player);
+                            boolean playerOnCooldown = checkForCooldown(player);
                             if (!playerOnCooldown) {
                                 if (player.getInventory().contains(Material.AMETHYST_SHARD, 32)) {
                                     player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 32));
                                 } else if (player.getInventory().contains(Material.AMETHYST_BLOCK, 8)) {
                                     player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 8));
                                 }
-                                List<Entity> playersEntity = player.getNearbyEntities(5, 5, 5);
+                                List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
                                 Entity playerEntity = playersEntity.get(0);
                                 if (playerEntity instanceof Player player2) {
                                     player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 3600, 0, true, false));
@@ -618,25 +643,19 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                             }
                         }
                     }
-                }
-            }
-        }
-
-        if(player.hasPermission("magic.travellers_blessing_debuff")) {
-            if (player.isSneaking()) {
-                if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
-                    Integer angleOfPlayer = (Math.round(player.getEyeLocation().getYaw()) + 270) % 360;
-                    if (angleOfPlayer <= 67 || angleOfPlayer <= 112 || angleOfPlayer <= 157) {
+                } else if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
+                    int angleOfPlayer = (Math.round(player.getEyeLocation().getYaw()) + 270) % 360;
+                    if (angleOfPlayer <= 157) {
                         Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
                         if (block.getType() == Material.LAVA_CAULDRON) {
-                            Boolean playerOnCooldown = checkForCooldown(player);
+                            boolean playerOnCooldown = checkForCooldown(player);
                             if (!playerOnCooldown) {
                                 if (player.getInventory().contains(Material.AMETHYST_SHARD, 32)) {
                                     player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 32));
                                 } else if (player.getInventory().contains(Material.AMETHYST_BLOCK, 8)) {
                                     player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 8));
                                 }
-                                List<Entity> playersEntity = player.getNearbyEntities(5, 5, 5);
+                                List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
                                 Entity playerEntity = playersEntity.get(0);
                                 if (playerEntity instanceof Player player2) {
                                     player2.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 3600, 0, true, false));
@@ -661,13 +680,13 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         Entity entity = event.getRightClicked();
 
-        if(player.hasPermission("allow.ride")) {
-            if(entity.getType() == EntityType.SPIDER) {
-                if(player.hasPermission(("allow.ride.spider"))) {
+        if (player.hasPermission("allow.ride")) {
+            if (entity.getType() == EntityType.SPIDER) {
+                if (player.hasPermission(("allow.ride.spider"))) {
                     entity.addPassenger(player);
                 }
-            } else if(entity.getType() == EntityType.CAVE_SPIDER) {
-                if(player.hasPermission(("allow.ride.cave_spider"))) {
+            } else if (entity.getType() == EntityType.CAVE_SPIDER) {
+                if (player.hasPermission(("allow.ride.cave_spider"))) {
                     entity.addPassenger(player);
                 }
             }
@@ -680,8 +699,8 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         Player target = event.getTarget();
 
-        if(!player.hasPermission("powers.sit")) event.setCancelled(true);
-        if(!target.hasPermission("powers.sittable")) event.setCancelled(true);
+        if (!player.hasPermission("powers.sit")) event.setCancelled(true);
+        if (!target.hasPermission("powers.sittable")) event.setCancelled(true);
     }
 
     private static Vector getVelocityVector(Vector vector, Player player, float side, float forw) {
