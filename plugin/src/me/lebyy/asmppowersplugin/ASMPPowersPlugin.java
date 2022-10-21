@@ -33,9 +33,42 @@ import org.bukkit.util.Vector;
 
 import java.util.*;
 
+class Cooldown {
+    private final Map<UUID, Long> cooldowns = new HashMap<>();
+
+    public boolean isOnCooldown(UUID uuid) {
+        return cooldowns.containsKey(uuid) && cooldowns.get(uuid) > System.currentTimeMillis();
+    }
+
+    public void setCooldown(UUID uuid, int cooldown) {
+        cooldowns.put(uuid, System.currentTimeMillis() + cooldown);
+    }
+
+    public long getCooldown(UUID uuid) {
+        return cooldowns.get(uuid) - System.currentTimeMillis();
+    }
+
+    public void removeCooldown(UUID uuid) {
+        cooldowns.remove(uuid);
+    }
+
+    public void clearCooldowns() {
+        cooldowns.clear();
+    }
+
+    public void warnCooldown(Player player, String ability) {
+        player.sendMessage(ChatColor.RED + "You are on cooldown for " + ability + " for " + getCooldown(player.getUniqueId()) / 1000 + " seconds.");
+    }
+}
+
 public class ASMPPowersPlugin extends JavaPlugin implements Listener {
     private static final HashMap < UUID, Long > cooldown = new HashMap<>();
     private static final HashMap < UUID, Long > dataStore = new HashMap<>();
+
+    private static final Cooldown swiftnessGraceCooldown = new Cooldown();
+    private static final Cooldown luckyShroudCooldown = new Cooldown();
+    private static final Cooldown travellersBlessingCooldown = new Cooldown();
+
     private static boolean crossedPowerActivated = false;
     private static int numberOfTimesNagaliePowerUsed = 0;
 
@@ -236,7 +269,7 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                 }
             }
             if (player.hasPermission("powers.aithne")) {
-                if (player.getInventory().getItemInMainHand().getType() == Material.AMETHYST_SHARD) {
+                if (player.getInventory().getItemInMainHand().getType() == Material.AMETHYST_BLOCK) {
                     if (player.getInventory().getItemInMainHand().getAmount() == 64) {
                         player.getInventory().setItemInMainHand(new ItemStack(Material.BUNDLE, 1));
                     }
@@ -282,7 +315,6 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
         }
         if (player.hasPermission("powers.aithne")) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, Integer.MAX_VALUE, 2, true, false));
-            player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, Integer.MAX_VALUE, 0, true, false));
         }
     }
 
@@ -302,7 +334,7 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
         }
         if (player.hasPermission("powers.aithne")) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, Integer.MAX_VALUE, 2, true, false));
-            player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, Integer.MAX_VALUE, 0, true, false));
+            checkAithneHealth(player);
         }
     }
 
@@ -324,10 +356,8 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
             }
             if (player.hasPermission("powers.aithne")) {
                 player.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, Integer.MAX_VALUE, 2, true, false));
-                player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, Integer.MAX_VALUE, 0, true, false));
             }
         }
-
     }
 
     // Trigerred once an entity targets a player.
@@ -393,6 +423,24 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
             attacker.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_DIGGING, 600, 1, true, false));
         }
     }
+
+    // Add a check for aithne player if they are under 3 hearts, give them weakness and then remove it when they are above 3 hearts.
+    // Use a bukkit runnable to check every 5 seconds.
+
+    private void checkAithneHealth(Player player) {
+        new BukkitRunnable() {
+
+            @Override
+            public void run() {
+                if (player.getHealth() <= 6) {
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, Integer.MAX_VALUE, 0, true, false));
+                } else {
+                    player.removePotionEffect(PotionEffectType.WEAKNESS);
+                }
+            }
+        }.runTaskTimer(this, 0, 100);
+    }
+
 
     // A function which aids in a player climbing a wall.
     private void playerWallClimbing(Player player) {
@@ -497,63 +545,73 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
             }
         }
 
+        if (player.hasPermission("magic.aithnes_arrival")) {
+            if (player.isSneaking()) {
+                String directionOfPlayer = getCardinalDirection(player);
+                if (Objects.equals(directionOfPlayer, "N") || Objects.equals(directionOfPlayer, "NE") || Objects.equals(directionOfPlayer, "NW")) {
+                    if (action == Action.LEFT_CLICK_BLOCK || action == Action.LEFT_CLICK_AIR) {
+                        Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
+                        if (block.getType() == Material.LAVA_CAULDRON) {
+                            if (player.getInventory().contains(Material.AMETHYST_BLOCK, 1)) {
+                                player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 1));
+                            } else {
+                                player.sendMessage(ChatColor.RED + "You do not have enough amethyst blocks to use this power.");
+                            }
+                            for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
+                                if (onlinePlayer.hasPermission("powers.aithne")) {
+                                    if (onlinePlayer != player) {
+                                        onlinePlayer.teleport(player.getLocation().add(3, 0, 0));
+                                        player.spawnParticle(Particle.VILLAGER_HAPPY, player.getLocation(), 10, 0.5, 1.5, 0.5, 1);
+                                        onlinePlayer.spawnParticle(Particle.WAX_OFF, onlinePlayer.getLocation(), 10, 0.5, 1.5, 0.5, 1);
+                                        return;
+                                    }
+                                }
+                            }
+                            player.sendMessage(ChatColor.RED + "No players found with the permission 'powers.aithne'");
+                        }
+                    }
+                }
+            }
+        }
+
         if (player.hasPermission("magic.swiftness_grace")) {
             if (player.isSneaking()) {
-                if (action == Action.LEFT_CLICK_BLOCK || action == Action.LEFT_CLICK_AIR) {
-                    float playerPitch = player.getEyeLocation().getPitch();
-                    if (playerPitch <= -90) {
-                        player.setVelocity(player.getVelocity().setY(0.5));
-                    }
-                    Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
-                    if (block.getType() == Material.LAVA_CAULDRON) {
-                        boolean playerOnCooldown = checkForCooldown(player);
-                        if (!playerOnCooldown) {
-                            if (player.getInventory().contains(Material.AMETHYST_SHARD, 64)) {
-                                player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 64));
-                            } else if (player.getInventory().contains(Material.AMETHYST_BLOCK, 16)) {
-                                player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 16));
-                            }
-                            List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
-                            Entity playerEntity = playersEntity.get(0);
-                            if (playerEntity instanceof Player player2) {
-                                player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 7200, 2, true, false));
-                                player.addPotionEffect(new PotionEffect(PotionEffectType.DOLPHINS_GRACE, 7200, 2, true, false));
-                                player.addPotionEffect(new PotionEffect(PotionEffectType.CONDUIT_POWER, 7200, 2, true, false));
-                                player2.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 3600, 2, true, false));
+                String directionOfPlayer = getCardinalDirection(player);
+                if (Objects.equals(directionOfPlayer, "S") || Objects.equals(directionOfPlayer, "SE") || Objects.equals(directionOfPlayer, "SW")) {
+                    if (action == Action.LEFT_CLICK_BLOCK || action == Action.LEFT_CLICK_AIR) {
+                        Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
+                        if (block.getType() == Material.LAVA_CAULDRON) {
+                            boolean playerOnCooldown = swiftnessGraceCooldown.isOnCooldown(player.getUniqueId());
+                            if (!playerOnCooldown) {
+                                if (player.getInventory().contains(Material.AMETHYST_BLOCK, 32)) {
+                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 32));
+                                } else {
+                                    player.sendMessage(ChatColor.RED + "You do not have enough amethyst blocks to use this power.");
+                                }
+                                List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
+                                playersEntity.remove(player);
+                                Entity playerEntity = playersEntity.get(0);
+                                if (playerEntity instanceof Player player2) {
+                                    if(swiftnessGraceCooldown.isOnCooldown(player2.getUniqueId())) {
+                                        player.sendMessage(ChatColor.RED + "This player is on cooldown for " + swiftnessGraceCooldown.getCooldown(player2.getUniqueId()) / 1000 + " seconds.");
+                                        swiftnessGraceCooldown.warnCooldown(player2, "Swiftness Grace Spell [Player]");
+                                        return;
+                                    }
+                                    player2.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 7200, 2, true, false));
+                                    player2.addPotionEffect(new PotionEffect(PotionEffectType.DOLPHINS_GRACE, 7200, 2, true, false));
+                                    player2.addPotionEffect(new PotionEffect(PotionEffectType.CONDUIT_POWER, 7200, 2, true, false));
+                                    player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 3600, 2, true, false));
+                                    swiftnessGraceCooldown.setCooldown(player2.getUniqueId(), 360000);
+                                } else {
+                                    player.sendMessage(ChatColor.RED + "You must be near a player to use this spell.");
+                                    return;
+                                }
+                                swiftnessGraceCooldown.setCooldown(player.getUniqueId(), 180000);
                             } else {
-                                player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 3600, 2, true, false));
+                                swiftnessGraceCooldown.warnCooldown(player, "Swiftness Grace Spell [Caster]");
+                                return;
                             }
-                            addCooldown(player, 360000);
                         }
-
-                    }
-                } else if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
-                    float playerPitch = player.getEyeLocation().getPitch();
-                    if (playerPitch <= -90) {
-                        player.setVelocity(player.getVelocity().setY(0.5));
-                    }
-                    Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
-                    if (block.getType() == Material.LAVA_CAULDRON) {
-                        boolean playerOnCooldown = checkForCooldown(player);
-                        if (!playerOnCooldown) {
-                            if (player.getInventory().contains(Material.AMETHYST_SHARD, 64)) {
-                                player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 64));
-                            } else if (player.getInventory().contains(Material.AMETHYST_BLOCK, 16)) {
-                                player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 16));
-                            }
-                            List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
-                            Entity playerEntity = playersEntity.get(0);
-                            if (playerEntity instanceof Player player2) {
-                                player2.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 7200, 2, true, false));
-                                player2.addPotionEffect(new PotionEffect(PotionEffectType.DOLPHINS_GRACE, 7200, 2, true, false));
-                                player2.addPotionEffect(new PotionEffect(PotionEffectType.CONDUIT_POWER, 7200, 2, true, false));
-                                player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 3600, 2, true, false));
-                            } else {
-                                player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 3600, 2, true, false));
-                            }
-                            addCooldown(player, 360000);
-                        }
-
                     }
                 }
             }
@@ -561,53 +619,39 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
 
         if (player.hasPermission("magic.lucky_shroud")) {
             if (player.isSneaking()) {
-                if (action == Action.LEFT_CLICK_BLOCK || action == Action.LEFT_CLICK_AIR) {
-                    int angleOfPlayer = (Math.round(player.getEyeLocation().getYaw()) + 270) % 360;
-                    if (angleOfPlayer <= 337) {
+                String directionOfPlayer = getCardinalDirection(player);
+                if (Objects.equals(directionOfPlayer, "E")) {
+                    if (action == Action.LEFT_CLICK_BLOCK || action == Action.LEFT_CLICK_AIR) {
                         Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
                         if (block.getType() == Material.LAVA_CAULDRON) {
-                            boolean playerOnCooldown = checkForCooldown(player);
+                            boolean playerOnCooldown = luckyShroudCooldown.isOnCooldown(player.getUniqueId());
                             if (!playerOnCooldown) {
-                                if (player.getInventory().contains(Material.AMETHYST_SHARD, 64)) {
-                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 64));
-                                } else if (player.getInventory().contains(Material.AMETHYST_BLOCK, 16)) {
-                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 16));
-                                }
-                                List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
-                                Entity playerEntity = playersEntity.get(0);
-                                if (playerEntity instanceof Player player2) {
-                                    player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 7200, 2, true, false));
-                                    player.addPotionEffect(new PotionEffect(PotionEffectType.LUCK, 7200, 2, true, false));
-                                    player2.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 3600, 0, true, false));
+                                if (player.getInventory().contains(Material.AMETHYST_BLOCK, 24)) {
+                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 24));
                                 } else {
-                                    player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 3600, 0, true, false));
-                                }
-                                addCooldown(player, 360000);
-                            }
-                        }
-                    }
-                } else if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
-                    int angleOfPlayer = (Math.round(player.getEyeLocation().getYaw()) + 270) % 360;
-                    if (angleOfPlayer <= 337) {
-                        Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
-                        if (block.getType() == Material.LAVA_CAULDRON) {
-                            boolean playerOnCooldown = checkForCooldown(player);
-                            if (!playerOnCooldown) {
-                                if (player.getInventory().contains(Material.AMETHYST_SHARD, 64)) {
-                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 64));
-                                } else if (player.getInventory().contains(Material.AMETHYST_BLOCK, 16)) {
-                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 16));
+                                    player.sendMessage(ChatColor.RED + "You do not have enough amethyst blocks to use this power.");
                                 }
                                 List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
+                                playersEntity.remove(player);
                                 Entity playerEntity = playersEntity.get(0);
                                 if (playerEntity instanceof Player player2) {
+                                    if(luckyShroudCooldown.isOnCooldown(player2.getUniqueId())) {
+                                        player.sendMessage(ChatColor.RED + "This player is on cooldown for " + luckyShroudCooldown.getCooldown(player2.getUniqueId()) / 1000 + " seconds.");
+                                        luckyShroudCooldown.warnCooldown(player2, "Lucky Shroud Spell [Player]");
+                                        return;
+                                    }
                                     player2.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 7200, 2, true, false));
                                     player2.addPotionEffect(new PotionEffect(PotionEffectType.LUCK, 7200, 2, true, false));
                                     player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 3600, 0, true, false));
+                                    luckyShroudCooldown.setCooldown(player2.getUniqueId(), 360000);
                                 } else {
-                                    player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 3600, 0, true, false));
+                                    player.sendMessage(ChatColor.RED + "You must be near a player to use this spell.");
+                                    return;
                                 }
-                                addCooldown(player, 360000);
+                                luckyShroudCooldown.setCooldown(player.getUniqueId(), 180000);
+                            } else {
+                                luckyShroudCooldown.warnCooldown(player, "Lucky Shroud Spell [Caster]");
+                                return;
                             }
                         }
                     }
@@ -617,55 +661,39 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
 
         if (player.hasPermission("magic.travellers_blessing")) {
             if (player.isSneaking()) {
-                if (action == Action.LEFT_CLICK_BLOCK || action == Action.LEFT_CLICK_AIR) {
-                    int angleOfPlayer = (Math.round(player.getEyeLocation().getYaw()) + 270) % 360;
-                    if (angleOfPlayer <= 157) {
+                String directionOfPlayer = getCardinalDirection(player);
+                if (Objects.equals(directionOfPlayer, "W")) {
+                    if (action == Action.LEFT_CLICK_BLOCK || action == Action.LEFT_CLICK_AIR) {
                         Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
                         if (block.getType() == Material.LAVA_CAULDRON) {
-                            boolean playerOnCooldown = checkForCooldown(player);
+                            boolean playerOnCooldown = travellersBlessingCooldown.isOnCooldown(player.getUniqueId());
                             if (!playerOnCooldown) {
-                                if (player.getInventory().contains(Material.AMETHYST_SHARD, 32)) {
-                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 32));
-                                } else if (player.getInventory().contains(Material.AMETHYST_BLOCK, 8)) {
-                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 8));
-                                }
-                                List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
-                                Entity playerEntity = playersEntity.get(0);
-                                if (playerEntity instanceof Player player2) {
-                                    player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 3600, 0, true, false));
-                                    player.addPotionEffect(new PotionEffect(PotionEffectType.FAST_DIGGING, 3600, 0, true, false));
-                                    player.addPotionEffect(new PotionEffect(PotionEffectType.WATER_BREATHING, 3600, 0, true, false));
-                                    player2.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_DIGGING, 2400, 0, true, false));
+                                if (player.getInventory().contains(Material.AMETHYST_BLOCK, 16)) {
+                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 16));
                                 } else {
-                                    player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_DIGGING, 2400, 0, true, false));
-                                }
-                                addCooldown(player, 360000);
-                            }
-                        }
-                    }
-                } else if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
-                    int angleOfPlayer = (Math.round(player.getEyeLocation().getYaw()) + 270) % 360;
-                    if (angleOfPlayer <= 157) {
-                        Block block = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
-                        if (block.getType() == Material.LAVA_CAULDRON) {
-                            boolean playerOnCooldown = checkForCooldown(player);
-                            if (!playerOnCooldown) {
-                                if (player.getInventory().contains(Material.AMETHYST_SHARD, 32)) {
-                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 32));
-                                } else if (player.getInventory().contains(Material.AMETHYST_BLOCK, 8)) {
-                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 8));
+                                    player.sendMessage(ChatColor.RED + "You do not have enough amethyst blocks to cast this spell.");
                                 }
                                 List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
+                                playersEntity.remove(player);
                                 Entity playerEntity = playersEntity.get(0);
                                 if (playerEntity instanceof Player player2) {
+                                    if(travellersBlessingCooldown.isOnCooldown(player2.getUniqueId())) {
+                                        player.sendMessage(ChatColor.RED + "This player is on cooldown for " + travellersBlessingCooldown.getCooldown(player2.getUniqueId()) / 1000 + " seconds.");
+                                        travellersBlessingCooldown.warnCooldown(player2, "Traveller's Blessing Spell [Player]");
+                                        return;
+                                    }
                                     player2.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 3600, 0, true, false));
                                     player2.addPotionEffect(new PotionEffect(PotionEffectType.FAST_DIGGING, 3600, 0, true, false));
                                     player2.addPotionEffect(new PotionEffect(PotionEffectType.WATER_BREATHING, 3600, 0, true, false));
                                     player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_DIGGING, 2400, 0, true, false));
+                                    travellersBlessingCooldown.setCooldown(player2.getUniqueId(), 360000);
                                 } else {
-                                    player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_DIGGING, 2400, 0, true, false));
+                                    player.sendMessage(ChatColor.RED + "No nearby players found.");
+                                    return;
                                 }
                                 addCooldown(player, 360000);
+                            } else {
+                                luckyShroudCooldown.warnCooldown(player, "Traveller's Blessing Spell [Caster]");
                             }
                         }
                     }
@@ -727,5 +755,40 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
         // already have (which will only be vertical velocity at this point.)
         // We need to preserve vertical velocity so we handle gravity properly.
         return mot.add(vector);
+    }
+
+    public static String getCardinalDirection(Player player) {
+        double rotation = (player.getLocation().getYaw() - 90.0F) % 360.0F;
+        if (rotation < 0.0D) {
+            rotation += 360.0D;
+        }
+        if ((0.0D <= rotation) && (rotation < 22.5D)) {
+            return "N";
+        }
+        if ((22.5D <= rotation) && (rotation < 67.5D)) {
+            return "NE";
+        }
+        if ((67.5D <= rotation) && (rotation < 112.5D)) {
+            return "E";
+        }
+        if ((112.5D <= rotation) && (rotation < 157.5D)) {
+            return "SE";
+        }
+        if ((157.5D <= rotation) && (rotation < 202.5D)) {
+            return "S";
+        }
+        if ((202.5D <= rotation) && (rotation < 247.5D)) {
+            return "SW";
+        }
+        if ((247.5D <= rotation) && (rotation < 292.5D)) {
+            return "W";
+        }
+        if ((292.5D <= rotation) && (rotation < 337.5D)) {
+            return "NW";
+        }
+        if ((337.5D <= rotation) && (rotation < 360.0D)) {
+            return "N";
+        }
+        return null;
     }
 }
