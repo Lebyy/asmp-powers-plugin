@@ -30,6 +30,7 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
+import me.lebyy.asmppowersplugin.commands.PowerCommands;
 
 import java.util.*;
 
@@ -78,6 +79,9 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
         saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getPluginManager().registerEvents(new ArmorListener(getConfig().getStringList("blocked")), this);
+        PowerCommands commands = new PowerCommands();
+        getCommand("axolotl").setExecutor(commands);
+
         try {
             Class.forName("org.bukkit.event.block.BlockDispenseArmorEvent");
             getServer().getPluginManager().registerEvents(new DispenserArmorListener(), this);
@@ -556,13 +560,17 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                                 player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 1));
                             } else {
                                 player.sendMessage(ChatColor.RED + "You do not have enough amethyst blocks to use this power.");
+                                return;
                             }
                             for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
                                 if (onlinePlayer.hasPermission("powers.aithne")) {
                                     if (onlinePlayer != player) {
-                                        onlinePlayer.teleport(player.getLocation().add(3, 0, 0));
-                                        player.spawnParticle(Particle.VILLAGER_HAPPY, player.getLocation(), 10, 0.5, 1.5, 0.5, 1);
-                                        onlinePlayer.spawnParticle(Particle.WAX_OFF, onlinePlayer.getLocation(), 10, 0.5, 1.5, 0.5, 1);
+                                        onlinePlayer.teleport(player.getLocation().add(0, 0, 3));
+                                        player.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, player.getLocation(), 10, 0.5, 1.5, 0.5, 1);
+                                        onlinePlayer.getWorld().spawnParticle(Particle.END_ROD, player.getLocation().add(0, 0, 3).getX(), player.getLocation().add(0, 0, 3).getY(), player.getLocation().add(0, 0, 3).getZ(), 10000, 10, 10, 10);;
+                                        onlinePlayer.addPotionEffect(new PotionEffect(PotionEffectType.LEVITATION, 40, 2));
+                                        onlinePlayer.getWorld().playSound(onlinePlayer.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1, 1);
+                                        player.sendMessage(ChatColor.GREEN + "You have used Aithne's Arrival.");
                                         return;
                                     }
                                 }
@@ -583,10 +591,11 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                         if (block.getType() == Material.LAVA_CAULDRON) {
                             boolean playerOnCooldown = swiftnessGraceCooldown.isOnCooldown(player.getUniqueId());
                             if (!playerOnCooldown) {
-                                if (player.getInventory().contains(Material.AMETHYST_BLOCK, 32)) {
-                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 32));
+                                if (player.getInventory().contains(Material.AMETHYST_SHARD, 32)) {
+                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 32));
                                 } else {
-                                    player.sendMessage(ChatColor.RED + "You do not have enough amethyst blocks to use this power.");
+                                    player.sendMessage(ChatColor.RED + "You do not have enough amethyst shards to use this power.");
+                                    return;
                                 }
                                 List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
                                 playersEntity.remove(player);
@@ -602,11 +611,12 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                                     player2.addPotionEffect(new PotionEffect(PotionEffectType.CONDUIT_POWER, 7200, 2, true, false));
                                     player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 3600, 2, true, false));
                                     swiftnessGraceCooldown.setCooldown(player2.getUniqueId(), 360000);
+                                    swiftnessGraceCooldown.setCooldown(player.getUniqueId(), 180000);
+                                    player.sendMessage(ChatColor.GREEN + "You have casted the Swiftness Grace Spell on " + player2.getName());
                                 } else {
                                     player.sendMessage(ChatColor.RED + "You must be near a player to use this spell.");
                                     return;
                                 }
-                                swiftnessGraceCooldown.setCooldown(player.getUniqueId(), 180000);
                             } else {
                                 swiftnessGraceCooldown.warnCooldown(player, "Swiftness Grace Spell [Caster]");
                                 return;
@@ -626,10 +636,11 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                         if (block.getType() == Material.LAVA_CAULDRON) {
                             boolean playerOnCooldown = luckyShroudCooldown.isOnCooldown(player.getUniqueId());
                             if (!playerOnCooldown) {
-                                if (player.getInventory().contains(Material.AMETHYST_BLOCK, 24)) {
-                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 24));
+                                if (player.getInventory().contains(Material.AMETHYST_SHARD, 24)) {
+                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 24));
                                 } else {
-                                    player.sendMessage(ChatColor.RED + "You do not have enough amethyst blocks to use this power.");
+                                    player.sendMessage(ChatColor.RED + "You do not have enough amethyst shards to use this power.");
+                                    return;
                                 }
                                 List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
                                 playersEntity.remove(player);
@@ -644,11 +655,12 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                                     player2.addPotionEffect(new PotionEffect(PotionEffectType.LUCK, 7200, 2, true, false));
                                     player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 3600, 0, true, false));
                                     luckyShroudCooldown.setCooldown(player2.getUniqueId(), 360000);
+                                    luckyShroudCooldown.setCooldown(player.getUniqueId(), 180000);
+                                    player.sendMessage(ChatColor.GREEN + "You have casted the Lucky Shroud spell on " + player2.getName());
                                 } else {
                                     player.sendMessage(ChatColor.RED + "You must be near a player to use this spell.");
                                     return;
                                 }
-                                luckyShroudCooldown.setCooldown(player.getUniqueId(), 180000);
                             } else {
                                 luckyShroudCooldown.warnCooldown(player, "Lucky Shroud Spell [Caster]");
                                 return;
@@ -668,10 +680,11 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                         if (block.getType() == Material.LAVA_CAULDRON) {
                             boolean playerOnCooldown = travellersBlessingCooldown.isOnCooldown(player.getUniqueId());
                             if (!playerOnCooldown) {
-                                if (player.getInventory().contains(Material.AMETHYST_BLOCK, 16)) {
-                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_BLOCK, 16));
+                                if (player.getInventory().contains(Material.AMETHYST_SHARD, 16)) {
+                                    player.getInventory().removeItem(new ItemStack(Material.AMETHYST_SHARD, 16));
                                 } else {
-                                    player.sendMessage(ChatColor.RED + "You do not have enough amethyst blocks to cast this spell.");
+                                    player.sendMessage(ChatColor.RED + "You do not have enough amethyst shards to cast this spell.");
+                                    return;
                                 }
                                 List < Entity > playersEntity = player.getNearbyEntities(5, 5, 5);
                                 playersEntity.remove(player);
@@ -686,14 +699,15 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                                     player2.addPotionEffect(new PotionEffect(PotionEffectType.FAST_DIGGING, 3600, 0, true, false));
                                     player2.addPotionEffect(new PotionEffect(PotionEffectType.WATER_BREATHING, 3600, 0, true, false));
                                     player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_DIGGING, 2400, 0, true, false));
-                                    travellersBlessingCooldown.setCooldown(player2.getUniqueId(), 360000);
+                                    travellersBlessingCooldown.setCooldown(player2.getUniqueId(), 180000);
+                                    travellersBlessingCooldown.setCooldown(player.getUniqueId(), 90000);
+                                    player.sendMessage(ChatColor.GREEN + "You casted Traveller's Blessing Spell on " + player2.getName());
                                 } else {
                                     player.sendMessage(ChatColor.RED + "No nearby players found.");
                                     return;
                                 }
-                                addCooldown(player, 360000);
                             } else {
-                                luckyShroudCooldown.warnCooldown(player, "Traveller's Blessing Spell [Caster]");
+                                travellersBlessingCooldown.warnCooldown(player, "Traveller's Blessing Spell [Caster]");
                             }
                         }
                     }
@@ -715,6 +729,10 @@ public class ASMPPowersPlugin extends JavaPlugin implements Listener {
                 }
             } else if (entity.getType() == EntityType.CAVE_SPIDER) {
                 if (player.hasPermission(("allow.ride.cave_spider"))) {
+                    entity.addPassenger(player);
+                }
+            } else if (entity.getType() == EntityType.AXOLOTL) {
+                if (player.hasPermission(("allow.ride.axolotl"))) {
                     entity.addPassenger(player);
                 }
             }
