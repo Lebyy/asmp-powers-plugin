@@ -4,3 +4,8 @@ author: Lebyy
 main: me.lebyy.asmppowersplugin.ASMPPowersPlugin
 api-version: 1.19
 depend: [ProtocolLib, GSit]
+commands:
+  axolotl:
+    description: Spawns the specified amount of Axolotl's
+    usage: /axolotl <amount>
+    aliases: [axo]
